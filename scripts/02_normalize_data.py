@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""
-Нормализация и дедупликация данных турагрегатора.
-- Нормализация стран, курортов, питания и звёздности
-- Маппинг отелей по алиасам и fuzzy matching
-- Обработка сырых туров и создание/сопоставление нормализованных туров
-- Дедупликация отелей и туров
-"""
+"""Нормализация и дедупликация данных."""
 
 from __future__ import annotations
 
@@ -156,7 +150,7 @@ def find_hotel_match(cur, operator_id, raw_name, country_name, resort_name):
     best_score = 0
     for hotel_id, hotel_name in cur.fetchall():
         score = SequenceMatcher(None, raw_name.lower(), hotel_name.lower()).ratio()
-        if score > best_score and score >= 0.82:
+        if score > best_score and score >= 0.65:
             best_match = hotel_id
             best_score = score
     return best_match
@@ -178,7 +172,7 @@ def ensure_hotel_alias(cur, hotel_id, operator_id, alias_name, source_name):
 def register_load_error(cur, source_table, raw_id, error_type, message, raw_payload):
     cur.execute(
         """
-        INSERT INTO load_errors (source_table, raw_record_id, error_type, error_message, raw_data, is_resolved)
+        INSERT OR IGNORE INTO load_errors (source_table, raw_record_id, error_type, error_message, raw_data, is_resolved)
         VALUES (?, ?, ?, ?, ?, 0)
         """,
         (source_table, raw_id, error_type, message, raw_payload),
@@ -414,6 +408,7 @@ def deduplicate_tours(conn):
         SELECT operator_id, hotel_id, departure_date, meal_type, adults, children,
                GROUP_CONCAT(id), COUNT(*), MIN(actual_price)
         FROM tours
+        WHERE is_available = 1
         GROUP BY operator_id, hotel_id, departure_date, meal_type, adults, children
         HAVING COUNT(*) > 1
         """
@@ -426,7 +421,7 @@ def deduplicate_tours(conn):
             """
             SELECT id FROM tours
             WHERE operator_id = ? AND hotel_id = ? AND departure_date = ? AND meal_type = ?
-              AND adults = ? AND children = ? AND actual_price = ?
+              AND adults = ? AND children = ? AND actual_price = ? AND is_available = 1
             ORDER BY id ASC
             LIMIT 1
             """,

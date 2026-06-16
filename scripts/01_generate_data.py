@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""
-Генерация тестовых данных для турагрегатора.
-Сценарий создаёт:
-1. Схему БД и справочники
-2. Нормализованные туры и отели
-3. Источники операторов в CSV / JSON / XLSX
-4. Импорт сырых данных из файлов в raw-слой
-5. Пользовательские события и бронирования
-"""
+"""Генерация тестовых данных: БД, операторы, туры, логи."""
 
 from __future__ import annotations
 
@@ -632,9 +624,13 @@ def create_operator_source_files(conn, tours, hotels, operator_ids):
             hotel_rows.append(build_source_hotel_row(hotel, source_type))
 
         tour_rows = []
+        alias_seed = []
         operator_tours = [tour for tour in tours if tour["operator_id"] == operator_id]
         for tour in random.sample(operator_tours, min(260, len(operator_tours))):
-            tour_rows.append(build_source_tour_row(tour, source_type))
+            row = build_source_tour_row(tour, source_type)
+            raw_hotel = row.get("hotel_name") or row.get("hotel") or row.get("HotelName")
+            tour_rows.append(row)
+            alias_seed.append((tour["hotel_id"], operator_id, raw_hotel))
         for _ in range(25):
             tour_rows.append(build_invalid_tour_row(source_type))
 
@@ -644,6 +640,17 @@ def create_operator_source_files(conn, tours, hotels, operator_ids):
         save_source_file(hotel_path, source_type, "hotels", hotel_rows)
         save_source_file(tour_path, source_type, "tours", tour_rows)
         total_files += 2
+
+        cur = conn.cursor()
+        for hotel_id, op_id, alias_name in alias_seed:
+            cur.execute(
+                """
+                INSERT OR IGNORE INTO hotel_aliases (hotel_id, operator_id, alias_name, source, confidence)
+                VALUES (?, ?, ?, ?, 0.95)
+                """,
+                (hotel_id, op_id, alias_name, f"generated_{operator_name}_{source_type}"),
+            )
+        conn.commit()
 
         loaded_hotels, _ = import_source_rows(conn, operator_id, operator_name, source_type, "hotels", hotel_path, batch_name)
         loaded_tours, _ = import_source_rows(conn, operator_id, operator_name, source_type, "tours", tour_path, batch_name)

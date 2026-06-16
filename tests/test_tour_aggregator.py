@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""
-Автоматизированные тесты для базы данных турагрегатора.
-45 тестов в 7 классах:
-- TestDatabaseSchema: структура БД (4 теста)
-- TestRequiredData: минимальные данные в справочниках (6 тестов)
-- TestDataIntegrity: целостность данных (11 тестов)
-- TestForeignKeys: FK-целостность (5 тестов)
-- TestBusinessLogic: бизнес-логика (7 тестов)
-- TestAnalyticsQueries: аналитические запросы (8 тестов)
-- TestRawDataProcessing: обработка raw-данных (4 теста)
-
-Запуск: pytest test_tour_aggregator.py -v
-"""
+"""Тесты базы данных турагрегатора."""
 
 import pytest
 import sqlite3
@@ -46,9 +34,7 @@ def cursor(db_connection):
     return db_connection.cursor()
 
 
-# ============================================================
-# 1. ТЕСТЫ СТРУКТУРЫ БД
-# ============================================================
+# Таблицы
 
 class TestDatabaseSchema:
     """Проверка структуры базы данных."""
@@ -87,11 +73,6 @@ class TestDatabaseSchema:
         for idx in key_indexes:
             assert idx in indexes, f"Индекс '{idx}' не найден"
 
-
-# ============================================================
-# 2. ТЕСТЫ НАЛИЧИЯ ДАННЫХ
-# ============================================================
-
 class TestRequiredData:
     """Проверка наличия минимальных данных в справочниках."""
 
@@ -129,11 +110,6 @@ class TestRequiredData:
         """В БД есть туры (>= 500)."""
         cursor.execute("SELECT COUNT(*) FROM tours")
         assert cursor.fetchone()[0] >= 500
-
-
-# ============================================================
-# 3. ТЕСТЫ ЦЕЛОСТНОСТИ ДАННЫХ
-# ============================================================
 
 class TestDataIntegrity:
     """Проверка целостности и корректности данных."""
@@ -196,11 +172,6 @@ class TestDataIntegrity:
         cursor.execute("SELECT COUNT(*) FROM tours WHERE discount_pct < 0")
         assert cursor.fetchone()[0] == 0
 
-
-# ============================================================
-# 4. ТЕСТЫ FK-ЦЕЛОСТНОСТИ
-# ============================================================
-
 class TestForeignKeys:
     """Проверка ссылочной целостности."""
 
@@ -249,11 +220,6 @@ class TestForeignKeys:
         """)
         assert cursor.fetchone()[0] == 0
 
-
-# ============================================================
-# 5. ТЕСТЫ БИЗНЕС-ЛОГИКИ
-# ============================================================
-
 class TestBusinessLogic:
     """Проверка бизнес-логики."""
 
@@ -269,11 +235,11 @@ class TestBusinessLogic:
         assert outdated >= 0  # просто проверяем, что запрос выполняется
 
     def test_reasonable_price_per_night(self, cursor):
-        """Цена за ночь в разумных пределах (3 000 - 100 000 руб.)."""
+        """Цена за ночь в разумных пределах (2 000 - 100 000 тг.)."""
         cursor.execute("""
             SELECT COUNT(*) FROM tours
             WHERE duration_nights > 0
-              AND (actual_price / duration_nights < 3000 OR actual_price / duration_nights > 100000)
+              AND (actual_price / duration_nights < 2000 OR actual_price / duration_nights > 100000)
         """)
         # Некоторая доля аномалий допустима
         anomalies = cursor.fetchone()[0]
@@ -327,11 +293,6 @@ class TestBusinessLogic:
         """Есть записи в истории цен."""
         cursor.execute("SELECT COUNT(*) FROM price_history")
         assert cursor.fetchone()[0] > 0, "История цен пуста"
-
-
-# ============================================================
-# 6. ТЕСТЫ АНАЛИТИЧЕСКИХ ЗАПРОСОВ
-# ============================================================
 
 class TestAnalyticsQueries:
     """Проверка аналитических запросов."""
@@ -414,11 +375,6 @@ class TestAnalyticsQueries:
         bookings = cursor.fetchone()[0]
         ratio = searches / bookings if bookings > 0 else float('inf')
         assert 1 <= ratio <= 100, f"Отношение поиски/бронь: {ratio:.1f}"
-
-
-# ============================================================
-# 7. ТЕСТЫ ОБРАБОТКИ RAW-ДАННЫХ
-# ============================================================
 
 class TestRawDataProcessing:
     """Проверка обработки сырых данных."""

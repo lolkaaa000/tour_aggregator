@@ -1,12 +1,6 @@
--- ============================================================
--- АНАЛИЗ ЦЕН И ПОЛЬЗОВАТЕЛЬСКОГО ПОВЕДЕНИЯ
--- ============================================================
+-- Цены и поведение пользователей
 
--- ============================================================
--- РАЗДЕЛ 1: ДИНАМИКА ЦЕН
--- ============================================================
-
--- 1.1 Средняя цена туров по неделям (тренд)
+-- Средняя цена туров по неделям
 SELECT strftime('%Y-W%W', t.departure_date) AS week,
        COUNT(*) AS tour_count,
        ROUND(AVG(t.actual_price), 0) AS avg_price,
@@ -17,14 +11,14 @@ WHERE t.is_available = 1
 GROUP BY week
 ORDER BY week;
 
--- 1.2 Историческая цена конкретного тура
+-- Историческая цена конкретного тура
 SELECT ph.tour_id, ph.price, ph.recorded_at,
        t.actual_price AS current_price
 FROM price_history ph
 JOIN tours t ON ph.tour_id = t.id
 ORDER BY ph.tour_id, ph.recorded_at;
 
--- 1.3 Среднемесячные цены по странам (сезонность)
+-- Среднемесячные цены по странам
 SELECT c.name AS country,
        strftime('%m', t.departure_date) AS month,
        COUNT(*) AS tour_count,
@@ -35,7 +29,7 @@ WHERE t.is_available = 1
 GROUP BY c.name, month
 ORDER BY country, month;
 
--- 1.4 Цена за ночь по странам (сравнение стоимости)
+-- Цена за ночь по странам
 SELECT c.name AS country,
        ROUND(AVG(t.actual_price / t.duration_nights), 0) AS avg_price_per_night,
        ROUND(AVG(t.actual_price / t.duration_nights / t.adults), 0) AS avg_price_per_person_night
@@ -45,12 +39,9 @@ WHERE t.is_available = 1
 GROUP BY c.name
 ORDER BY avg_price_per_night ASC;
 
--- ============================================================
--- РАЗДЕЛ 2: АНОМАЛИИ ЦЕН
--- ============================================================
+-- Аномалии цен
 
--- 2.1 Обнаружение ценовых аномалий (z-score > 2)
--- В SQLite нет STDDEV, считаем вручную
+-- Ценовые аномалии (z-score > 2)
 WITH tour_stats AS (
     SELECT country_id,
            AVG(actual_price) AS mean_price,
@@ -85,7 +76,7 @@ WHERE ABS(z.z_score) > 2
 ORDER BY ABS(z.z_score) DESC
 LIMIT 30;
 
--- 2.2 Межотельная разница цен в одном курорте
+-- Разница цен в одном курорте
 SELECT r.name AS resort, c.name AS country,
        MAX(t.actual_price) - MIN(t.actual_price) AS price_spread,
        ROUND(AVG(t.actual_price), 0) AS avg_price,
@@ -100,7 +91,7 @@ HAVING hotel_count > 3
 ORDER BY price_spread DESC
 LIMIT 20;
 
--- 2.3 Туры с максимальной скидкой
+-- Туры с максимальной скидкой
 SELECT c.name AS country, h.name AS hotel,
        t.original_price, t.actual_price,
        t.discount_pct,
@@ -112,12 +103,9 @@ WHERE t.discount_pct > 0 AND t.is_available = 1
 ORDER BY t.discount_pct DESC
 LIMIT 20;
 
--- ============================================================
--- РАЗДЕЛ 3: ПОЛЬЗОВАТЕЛЬСКОЕ ПОВЕДЕНИЕ
--- ============================================================
+-- Поведение пользователей
 
--- 3.1 Воронка конверсии: Поиск → Просмотр → Клик → Бронь
--- (на уровне сессий, уникальные session_id)
+-- Воронка конверсии: Поиск → Просмотр → Клик → Бронь
 WITH funnel AS (
     SELECT
         (SELECT COUNT(DISTINCT session_id) FROM search_logs) AS searches,
@@ -137,7 +125,7 @@ SELECT searches,
        ROUND(bookings_via_click * 100.0 / NULLIF(searches, 0), 1) AS search_to_book_pct
 FROM funnel;
 
--- 3.2 Конверсия по странам (поиск → бронь)
+-- Конверсия по странам
 SELECT c.name AS country,
        COUNT(DISTINCT sl.session_id) AS searches,
        COUNT(DISTINCT b.id) AS bookings,
@@ -150,7 +138,7 @@ LEFT JOIN bookings b ON b.tour_id IN (
 GROUP BY c.name
 ORDER BY conversion_pct DESC;
 
--- 3.3 Популярные направления: поиск vs бронь
+-- Популярные направления: поиск vs бронь
 SELECT c.name AS country,
        COUNT(DISTINCT sl.session_id) AS search_sessions,
        (SELECT COUNT(*) FROM bookings b
@@ -164,7 +152,7 @@ JOIN countries c ON sl.country_id = c.id
 GROUP BY c.name
 ORDER BY search_sessions DESC;
 
--- 3.4 Анализ отказов (bounce): сессии с 1 просмотром и без кликов
+-- Отказы по сессиям
 WITH view_counts AS (
     SELECT session_id, COUNT(*) AS view_count
     FROM tour_views
@@ -181,14 +169,14 @@ SELECT
     ROUND((SELECT COUNT(*) FROM view_counts WHERE view_count = 1) * 100.0
           / NULLIF((SELECT COUNT(DISTINCT session_id) FROM search_logs), 0), 1) AS bounce_rate_pct;
 
--- 3.5 Среднее время просмотра тура перед кликом
+-- Среднее время просмотра перед кликом
 SELECT
     ROUND(AVG(tv.view_duration), 0) AS avg_view_duration_seconds,
     ROUND(AVG(tv.view_duration) / 60.0, 1) AS avg_view_duration_minutes
 FROM tour_views tv
 JOIN click_logs cl ON tv.session_id = cl.session_id AND tv.tour_id = cl.tour_id;
 
--- 3.6 Статус бронирований
+-- Статус бронирований
 SELECT status,
        COUNT(*) AS count,
        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM bookings), 1) AS pct,
@@ -197,7 +185,7 @@ FROM bookings
 GROUP BY status
 ORDER BY count DESC;
 
--- 3.7 Повторные покупки
+-- Повторные покупки
 SELECT u.id AS user_id, u.username, u.city,
        COUNT(b.id) AS booking_count,
        ROUND(SUM(b.total_price), 0) AS total_spent

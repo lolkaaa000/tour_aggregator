@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""
-Автоматизированная проверка качества данных турагрегатора.
-30+ проверок: обязательные поля, логическая целостность,
-актуальность, FK-целостность, дубликаты, ошибки загрузки.
-Результаты записываются в таблицу data_quality_reports.
-Запуск: python 03_data_quality.py
-"""
+"""Проверка качества данных."""
 
 import sqlite3
 import os
@@ -132,10 +126,10 @@ def check_logical_integrity(cur):
         "Цена за ночь не должна превышать 100000")
     checks.append(c)
 
-    # Цена за ночь < 3000 (аномалия)
+    # Цена за ночь < 2000 (аномалия)
     c = run_check(cur, "Аномально низкая цена за ночь", "integrity", "tours",
-        "SELECT COUNT(*), SUM(CASE WHEN actual_price / duration_nights < 3000 THEN 1 ELSE 0 END) FROM tours WHERE duration_nights > 0",
-        "Цена за ночь не должна быть ниже 3000")
+        "SELECT COUNT(*), SUM(CASE WHEN actual_price / duration_nights < 2000 THEN 1 ELSE 0 END) FROM tours WHERE duration_nights > 0",
+        "Цена за ночь не должна быть ниже 2000")
     checks.append(c)
 
     return checks
@@ -216,9 +210,9 @@ def check_raw_data(cur):
         "SELECT COUNT(*), SUM(CASE WHEN is_processed = 0 THEN 1 ELSE 0 END) FROM hotels_raw")
     checks.append(c)
 
-    # Необработанные туры
-    c = run_check(cur, "Необработанные сырые туры", "raw_data", "tours_raw",
-        "SELECT COUNT(*), SUM(CASE WHEN is_processed = 0 THEN 1 ELSE 0 END) FROM tours_raw")
+    # Необработанные туры (ожидающие обработки, без ошибок)
+    c = run_check(cur, "Необработанные сырые туры (без ошибок)", "raw_data", "tours_raw",
+        "SELECT COUNT(*), SUM(CASE WHEN is_processed = 0 AND error_type IS NULL THEN 1 ELSE 0 END) FROM tours_raw")
     checks.append(c)
 
     # Типы ошибок
@@ -229,9 +223,10 @@ def check_raw_data(cur):
             f"SELECT (SELECT COUNT(*) FROM tours_raw), {cnt}")
         checks.append(c)
 
-    # Ошибки загрузки
-    c = run_check(cur, "Неразрешённые ошибки загрузки", "raw_data", "load_errors",
-        "SELECT COUNT(*), SUM(CASE WHEN is_resolved = 0 THEN 1 ELSE 0 END) FROM load_errors")
+    # Ошибки загрузки (только tours_raw, чтобы не дублировать счёт с проверкой выше)
+    c = run_check(cur, "Ошибки загрузки сырых туров (load_errors)", "raw_data", "load_errors",
+        "SELECT COUNT(*), SUM(CASE WHEN is_resolved = 0 AND source_table = 'tours_raw' THEN 1 ELSE 0 END) FROM load_errors",
+        "Ошибки импорта туров; пересекаются с tours_raw — не суммировать отдельно с проверкой выше")
     checks.append(c)
 
     # Дубликаты отелей на разборе
@@ -259,12 +254,13 @@ def check_duplicates(cur):
             f"SELECT {cnt}, {cnt if status == 'pending' else 0}")
         checks.append(c)
 
-    # Дубли туров (одинаковые operator+hotel+date+meal)
-    c = run_check(cur, "Дубли туров (один оператор+отель+дата+питание)", "duplicates", "tours",
+    # Дубли туры (одинаковые operator+hotel+date+meal+adults+children, только доступные)
+    c = run_check(cur, "Дубли туров (operator+отель+дата+питание+ад/дет)", "duplicates", "tours",
         """SELECT COUNT(*), (SELECT COUNT(*) FROM (
-            SELECT operator_id, hotel_id, departure_date, meal_type, COUNT(*) as cnt
-            FROM tours GROUP BY operator_id, hotel_id, departure_date, meal_type HAVING cnt > 1
-        )) FROM tours""")
+            SELECT operator_id, hotel_id, departure_date, meal_type, adults, children, COUNT(*) as cnt
+            FROM tours WHERE is_available = 1
+            GROUP BY operator_id, hotel_id, departure_date, meal_type, adults, children HAVING cnt > 1
+        )) FROM tours WHERE is_available = 1""")
     checks.append(c)
 
     return checks

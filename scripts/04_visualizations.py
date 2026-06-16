@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""
-Визуализации данных турагрегатора — 8 PNG-графиков.
-Использует matplotlib + Sarasa Mono SC для русского текста.
-Запуск: python 04_visualizations.py
-"""
+"""Графики по данным турагрегатора."""
 
 import sqlite3
 import os
@@ -15,9 +11,7 @@ import matplotlib.font_manager as fm
 DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'download', 'tour_aggregator.db')
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'download')
 
-# ============================================================
-# НАСТРОЙКА ШРИФТОВ
-# ============================================================
+# Настройка шрифтов
 
 # Используем системные шрифты без жёсткой привязки к Linux-пути.
 available_fonts = {font.name for font in fm.fontManager.ttflist}
@@ -169,9 +163,8 @@ def chart_seasonality():
     fig.patch.set_facecolor(COLORS['bg'])
     ax.set_facecolor(COLORS['bg'])
 
-    months = list(range(1, 13))
-    month_labels = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн',
-                     'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек']
+    months = list(range(6, 13))
+    month_labels = ['Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек']
 
     for i, country in enumerate(top_countries):
         cur.execute("""
@@ -183,16 +176,18 @@ def chart_seasonality():
             GROUP BY month
             ORDER BY month
         """, (country,))
-        data = dict(cur.fetchall())
-        prices = [data.get(m, 0) for m in months]
-        ax.plot(months, prices, marker='o', linewidth=2.5, markersize=6,
+        data = cur.fetchall()
+        if not data:
+            continue
+        months_with_data, prices = zip(*data)
+        ax.plot(months_with_data, prices, marker='o', linewidth=2.5, markersize=6,
                 color=PALETTE[i], label=country, alpha=0.85)
 
     conn.close()
 
     ax.set_xticks(months)
     ax.set_xticklabels(month_labels, fontsize=11)
-    ax.set_ylabel('Средняя цена (руб.)', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Средняя цена (тг.)', fontsize=12, fontweight='bold')
     ax.set_title('Сезонность цен по странам (топ-5)', fontsize=16,
                   fontweight='bold', color=COLORS['primary'], pad=15)
     ax.legend(fontsize=10, loc='upper right', framealpha=0.9)
@@ -252,7 +247,7 @@ def chart_operator_comparison():
         ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 500,
                  f'{int(price):,}', ha='center', va='bottom', fontsize=9,
                  fontweight='bold', color=COLORS['primary'])
-    ax2.set_ylabel('Средняя цена (руб.)', fontsize=11, fontweight='bold')
+    ax2.set_ylabel('Средняя цена (тг.)', fontsize=11, fontweight='bold')
     ax2.set_title('Средняя цена по операторам', fontsize=14, fontweight='bold',
                    color=COLORS['primary'], pad=15)
     ax2.grid(axis='y', alpha=0.3, color=COLORS['grid'])
@@ -306,7 +301,7 @@ def chart_price_distribution():
                 str(count), ha='center', va='bottom', fontsize=11,
                 fontweight='bold', color=COLORS['primary'])
 
-    ax.set_xlabel('Ценовой диапазон (руб.)', fontsize=12, fontweight='bold')
+    ax.set_xlabel('Ценовой диапазон (тг.)', fontsize=12, fontweight='bold')
     ax.set_ylabel('Количество туров', fontsize=12, fontweight='bold')
     ax.set_title('Распределение туров по ценовым диапазонам', fontsize=16,
                   fontweight='bold', color=COLORS['primary'], pad=15)
@@ -357,7 +352,7 @@ def chart_top_resorts():
 
     for bar, count, price in zip(bars, counts, avg_prices):
         ax.text(bar.get_width() + 3, bar.get_y() + bar.get_height() / 2,
-                f'{count} (ср. {int(price):,} руб.)', va='center', fontsize=9,
+                f'{count} (ср. {int(price):,} тг.)', va='center', fontsize=9,
                 color=COLORS['primary'])
 
     ax.set_xlabel('Количество туров', fontsize=12, fontweight='bold')
@@ -479,7 +474,7 @@ def chart_booking_status():
         ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 500,
                  f'{int(price):,}', ha='center', va='bottom', fontsize=10,
                  fontweight='bold', color=COLORS['primary'])
-    ax2.set_ylabel('Средняя цена (руб.)', fontsize=11, fontweight='bold')
+    ax2.set_ylabel('Средняя цена (тг.)', fontsize=11, fontweight='bold')
     ax2.set_title('Средняя цена по статусам', fontsize=14, fontweight='bold',
                    color=COLORS['primary'], pad=15)
     ax2.grid(axis='y', alpha=0.3, color=COLORS['grid'])

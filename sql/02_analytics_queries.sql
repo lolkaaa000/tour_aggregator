@@ -1,12 +1,8 @@
--- ============================================================
--- АНАЛИТИЧЕСКИЕ ЗАПРОСЫ: Фильтрация и агрегация
--- ============================================================
+-- Аналитика: фильтрация и агрегация
 
--- ============================================================
--- РАЗДЕЛ 1: ФИЛЬТРАЦИЯ ПО СТРАНЕ / НАПРАВЛЕНИЮ
--- ============================================================
+-- Фильтрация по стране/направлению
 
--- 1.1 Все туры в Турцию с ценами
+-- Туры в Турцию с ценами
 SELECT t.id, c.name AS country, r.name AS resort, h.name AS hotel,
        h.star_rating, t.departure_date, t.duration_nights,
        t.meal_type, t.actual_price, op.short_name AS operator
@@ -19,7 +15,7 @@ WHERE c.name = 'Турция' AND t.is_available = 1
 ORDER BY t.actual_price ASC
 LIMIT 20;
 
--- 1.2 Топ-10 курортов по количеству туров
+-- Топ-10 курортов по количеству туров
 SELECT c.name AS country, r.name AS resort,
        COUNT(*) AS tour_count,
        ROUND(AVG(t.actual_price), 0) AS avg_price,
@@ -33,7 +29,7 @@ GROUP BY c.name, r.name
 ORDER BY tour_count DESC
 LIMIT 10;
 
--- 1.3 Туры по выбранному курорту (детально)
+-- Туры по выбранному курорту
 SELECT t.id, h.name AS hotel, h.star_rating, t.departure_date,
        t.duration_nights, t.meal_type, t.actual_price,
        op.short_name AS operator, t.room_type
@@ -45,11 +41,9 @@ WHERE r.name = 'Анталья' AND t.is_available = 1
 ORDER BY t.actual_price ASC
 LIMIT 30;
 
--- ============================================================
--- РАЗДЕЛ 2: ФИЛЬТРАЦИЯ ПО ДАТЕ ВЫЛЕТА
--- ============================================================
+-- Фильтрация по дате вылета
 
--- 2.1 Туры на ближайшие 2 недели
+-- Туры на ближайшие 2 недели
 SELECT c.name AS country, r.name AS resort, h.name AS hotel,
        t.departure_date, t.duration_nights, t.actual_price,
        op.short_name AS operator
@@ -62,7 +56,7 @@ WHERE t.departure_date BETWEEN date('now') AND date('now', '+14 days')
   AND t.is_available = 1
 ORDER BY t.departure_date, t.actual_price ASC;
 
--- 2.2 Туры по месяцам (сезонность)
+-- Туры по месяцам
 SELECT strftime('%Y-%m', t.departure_date) AS month,
        COUNT(*) AS tour_count,
        ROUND(AVG(t.actual_price), 0) AS avg_price,
@@ -73,7 +67,7 @@ WHERE t.is_available = 1
 GROUP BY strftime('%Y-%m', t.departure_date)
 ORDER BY month;
 
--- 2.3 Горящие туры (вылет в ближайшие 7 дней со скидкой)
+-- Горящие туры
 SELECT c.name AS country, h.name AS hotel, t.departure_date,
        t.duration_nights, t.actual_price, t.original_price,
        t.discount_pct, op.short_name AS operator
@@ -86,11 +80,9 @@ WHERE t.departure_date BETWEEN date('now') AND date('now', '+7 days')
   AND t.is_available = 1
 ORDER BY t.discount_pct DESC;
 
--- ============================================================
--- РАЗДЕЛ 3: ФИЛЬТРАЦИЯ ПО ЦЕНЕ
--- ============================================================
+-- Фильтрация по цене
 
--- 3.1 Распределение туров по ценовым диапазонам
+-- Распределение по ценовым диапазонам
 SELECT
     CASE
         WHEN t.actual_price < 40000 THEN 'до 40 000'
@@ -109,7 +101,7 @@ WHERE t.is_available = 1
 GROUP BY price_range
 ORDER BY MIN(t.actual_price);
 
--- 3.2 Лучшие предложения по соотношению цена/качество
+-- Лучшие предложения по цене/качеству
 SELECT c.name AS country, r.name AS resort, h.name AS hotel,
        h.star_rating, t.actual_price,
        ROUND(t.actual_price / t.duration_nights, 0) AS price_per_night,
@@ -123,7 +115,7 @@ WHERE t.is_available = 1 AND h.star_rating >= 4
 ORDER BY price_per_night ASC
 LIMIT 20;
 
--- 3.3 Дешевле определённой цены с фильтром по стране
+-- Дешевле заданной цены по стране
 SELECT c.name AS country, h.name AS hotel, h.star_rating,
        t.actual_price, t.departure_date, t.duration_nights,
        t.meal_type, op.short_name AS operator
@@ -137,11 +129,9 @@ WHERE t.actual_price <= 80000
 ORDER BY t.actual_price ASC
 LIMIT 20;
 
--- ============================================================
--- РАЗДЕЛ 4: СРАВНЕНИЕ ОПЕРАТОРОВ
--- ============================================================
+-- Сравнение операторов
 
--- 4.1 Рыночная доля операторов
+-- Рыночная доля операторов
 SELECT op.short_name AS operator,
        COUNT(*) AS tour_count,
        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM tours WHERE is_available = 1), 1) AS market_share_pct,
@@ -154,7 +144,7 @@ WHERE t.is_available = 1
 GROUP BY op.short_name
 ORDER BY tour_count DESC;
 
--- 4.2 Средняя цена по операторам и странам
+-- Средняя цена по операторам и странам
 SELECT op.short_name AS operator, c.name AS country,
        COUNT(*) AS tours,
        ROUND(AVG(t.actual_price), 0) AS avg_price
@@ -165,7 +155,7 @@ WHERE t.is_available = 1
 GROUP BY op.short_name, c.name
 ORDER BY country, avg_price;
 
--- 4.3 Оператор с лучшей ценой для конкретного отеля
+-- Оператор с лучшей ценой для конкретного отеля
 SELECT h.name AS hotel, op.short_name AS operator,
        t.actual_price, t.departure_date, t.meal_type
 FROM tours t
@@ -183,11 +173,9 @@ WHERE t.is_available = 1
 ORDER BY h.name
 LIMIT 20;
 
--- ============================================================
--- РАЗДЕЛ 5: АГРЕГИРОВАННЫЕ МЕТРИКИ
--- ============================================================
+-- Агрегированные метрики
 
--- 5.1 Общая статистика по базе
+-- Общая статистика по базе
 SELECT
     (SELECT COUNT(*) FROM tours WHERE is_available = 1) AS active_tours,
     (SELECT COUNT(*) FROM hotels) AS total_hotels,
@@ -198,7 +186,7 @@ SELECT
     (SELECT COUNT(*) FROM bookings) AS total_bookings,
     (SELECT COUNT(DISTINCT user_id) FROM bookings) AS unique_buyers;
 
--- 5.2 Статистика по странам
+-- Статистика по странам
 SELECT c.name AS country,
        COUNT(*) AS tour_count,
        COUNT(DISTINCT r.id) AS resort_count,
@@ -213,7 +201,7 @@ WHERE t.is_available = 1
 GROUP BY c.name
 ORDER BY tour_count DESC;
 
--- 5.3 Средний рейтинг отелей по странам
+-- Средний рейтинг отелей по странам
 SELECT c.name AS country,
        COUNT(h.id) AS hotel_count,
        ROUND(AVG(h.star_rating), 1) AS avg_stars,
